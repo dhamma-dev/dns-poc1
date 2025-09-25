@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  redis:
+    image: "redis:alpine"
+    ports:
+      - "6379:6379"
+
+  coordinator:
+    build: ./coordinator
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./coordinator:/app
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    depends_on:
+      - redis
+
+  agent:
+    build: ./agent
+    volumes:
+      - ./agent:/app
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - COORDINATOR_URL=http://coordinator:5000/api/v1/results
+    depends_on:
+      - coordinator
+      - redis

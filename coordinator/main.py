@@ -13,11 +13,13 @@ logging.basicConfig(
 # Initialize Flask App
 app = Flask(__name__)
 
+import os
+
 # Configure Celery
-# The broker URL points to the Redis server.
-# The backend is also Redis, used to store task results.
-app.config['CELERY_BROKER_URL'] = 'redis://localhost:6379/0'
-app.config['CELERY_RESULT_BACKEND'] = 'redis://localhost:6379/0'
+# The broker URL points to the Redis server, configured via environment variables.
+# This makes it easy to use with Docker Compose.
+app.config['CELERY_BROKER_URL'] = os.environ.get('CELERY_BROKER_URL', 'redis://localhost:6379/0')
+app.config['CELERY_RESULT_BACKEND'] = os.environ.get('CELERY_RESULT_BACKEND', 'redis://localhost:6379/0')
 
 # Create a Celery instance
 celery = Celery(app.name, broker=app.config['CELERY_BROKER_URL'])

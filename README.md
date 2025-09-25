@@ -2,93 +2,39 @@
 
 This project is a Proof of Concept (POC) for a DNS monitoring solution that uses the `dig` command-line utility to replicate the core functionality of a service like ThousandEyes.
 
-## Architecture (Phase 2)
+## Architecture (Phase 2 - Containerized)
 
-The architecture has evolved to support dynamic test scheduling:
+The entire application stack is managed by `docker-compose`, which orchestrates the following services:
 
-*   **Coordinator (`coordinator/`)**: A Flask web application that serves a UI for scheduling tests. It uses Celery to dispatch test jobs to a Redis message queue.
-*   **Agent (`agent/`)**: A containerized Celery worker that listens for jobs on the Redis queue, executes `dig` commands, and posts the results back to the Coordinator's API.
-*   **Redis**: Acts as the message broker between the Coordinator and the Agent(s).
+*   **Coordinator**: A containerized Flask web application that serves a UI for scheduling tests. It uses Celery to dispatch test jobs.
+*   **Agent**: A containerized Celery worker that listens for jobs on the Redis queue, executes `dig` commands, and posts the results back to the Coordinator's API.
+*   **Redis**: A container running Redis, which acts as the message broker between the Coordinator and the Agent(s).
 
 ## Prerequisites
 
-*   **Docker**: Required to build and run the containerized agent.
-*   **Python 3**: Required to run the coordinator script.
-*   **Redis**: Required for the Celery message queue. You can install it via a package manager (e.g., `sudo apt-get install redis-server` or `brew install redis`).
+*   **Docker**
+*   **Docker Compose**
 
-## Setup & Running Phase 2
+## Running the Application
 
-Follow these steps to run the complete Phase 2 stack.
+With Docker and Docker Compose, running the entire application stack is as simple as a single command.
 
-### 1. Start Redis
+### 1. Build and Run the Services
 
-First, ensure your Redis server is running. If you just installed it, it may have started automatically. You can check its status or start it manually.
-
-```bash
-# (On most systems)
-sudo systemctl start redis-server
-
-# Or run it directly
-redis-server
-```
-
-Leave this terminal running.
-
-### 2. Install Coordinator Dependencies
-
-In a **new terminal**, navigate to the project root and install the Python dependencies for the coordinator.
+From the root of the repository, run:
 
 ```bash
-pip install -r coordinator/requirements.txt
+docker-compose up --build
 ```
 
-### 3. Start the Coordinator
+This command will:
+1.  Build the Docker images for the `coordinator` and `agent` services.
+2.  Start containers for `redis`, `coordinator`, and `agent`.
+3.  Stream the logs from all services to your terminal.
 
-In the same terminal, start the Flask coordinator application.
+You will see logs from all three services. The `agent` service will eventually show a "Ready" status, indicating it is waiting for tasks.
 
-```bash
-python3 coordinator/main.py
-```
-
-Leave this terminal running. It will serve the web UI and dispatch tasks.
-
-### 4. Build and Run the Agent Worker
-
-Open a **third terminal**. First, build the new agent Docker image.
-
-```bash
-sudo docker build -t dig-agent-worker agent/
-```
-
-Next, run the agent worker container. It needs to connect to both Redis and the coordinator on your host machine.
-
-**Important:** The command to run the agent depends on your operating system.
-
-**On Docker Desktop (macOS or Windows):**
-
-Use `host.docker.internal` to connect to services on your host.
-
-```bash
-sudo docker run \
-  -e REDIS_URL=redis://host.docker.internal:6379/0 \
-  -e COORDINATOR_URL=http://host.docker.internal:5000/api/v1/results \
-  dig-agent-worker
-```
-
-**On Linux:**
-
-Use `--network="host"` to share the host's network.
-
-```bash
-sudo docker run --network="host" \
-  -e REDIS_URL=redis://localhost:6379/0 \
-  -e COORDINATOR_URL=http://localhost:5000/api/v1/results \
-  dig-agent-worker
-```
-
-Leave this terminal running. You should see Celery startup logs, and it will end with "celery@<hostname>: Ready".
-
-### 5. Schedule a Test via the UI
+### 2. Schedule a Test via the UI
 
 Open your web browser and navigate to:
 
@@ -99,9 +45,19 @@ You should see a simple form.
 2.  Select a record type.
 3.  Click "Run Test".
 
-### 6. Verify the Results
+### 3. Verify the Results
 
-1.  **Agent Terminal**: You should see a log message indicating the agent received and executed the task (e.g., `Received task: dig github.com A`).
-2.  **Coordinator Terminal**: You should see a log message showing the results posted back from the agent (e.g., `--- RESULT RECEIVED FROM AGENT ---`).
+Check the logs in your terminal where `docker-compose` is running. You should see:
+1.  A log from the `coordinator` service indicating a task was dispatched.
+2.  A log from the `agent` service showing it received the task and is running the `dig` command.
+3.  A final log from the `coordinator` service showing the results posted back from the agent (e.g., `--- RESULT RECEIVED FROM AGENT ---`).
 
-This confirms the full workflow: the UI dispatches a task via Celery, the agent receives and executes it, and the results are sent back to the coordinator.
+This confirms that the fully containerized application is working correctly.
+
+### 4. Stopping the Application
+
+To stop all the services, press `Ctrl+C` in the terminal where `docker-compose` is running. To remove the containers, you can run:
+
+```bash
+docker-compose down
+```
