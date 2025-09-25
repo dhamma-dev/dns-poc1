@@ -1,60 +1,83 @@
-import http.server
-import socketserver
-import json
+from flask import Flask, request, jsonify, render_template, redirect, url_for
+from celery import Celery
 import logging
 
-PORT = 5000
-LOG_FILE = 'coordinator.log'
+# --- App & Celery Configuration ---
 
-# Configure logging to write directly to a file
+# Configure basic logging
 logging.basicConfig(
-    filename=LOG_FILE,
     level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s'
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 
-class SimpleHTTPRequestHandler(http.server.BaseHTTPRequestHandler):
-    def do_POST(self):
-        if self.path == '/api/v1/results':
-            try:
-                content_length = int(self.headers['Content-Length'])
-                post_data = self.rfile.read(content_length)
+# Initialize Flask App
+app = Flask(__name__)
 
-                logging.info("--- REQUEST RECEIVED ---")
+# Configure Celery
+# The broker URL points to the Redis server.
+# The backend is also Redis, used to store task results.
+app.config['CELERY_BROKER_URL'] = 'redis://localhost:6379/0'
+app.config['CELERY_RESULT_BACKEND'] = 'redis://localhost:6379/0'
 
-                # Parse and log the JSON data
-                data = json.loads(post_data)
-                logging.info("Received data from agent:")
-                logging.info(json.dumps(data, indent=2))
+# Create a Celery instance
+celery = Celery(app.name, broker=app.config['CELERY_BROKER_URL'])
+celery.conf.update(app.config)
 
-                # Send response
-                self.send_response(201)
-                self.send_header('Content-type', 'application/json')
-                self.end_headers()
-                response = {'status': 'success', 'message': 'Data received'}
-                self.wfile.write(json.dumps(response).encode('utf-8'))
 
-                logging.info("--- RESPONSE SENT ---")
+# --- Celery Task Definition ---
 
-            except Exception as e:
-                logging.error(f"Error processing request: {e}")
-                self.send_response(500)
-                self.end_headers()
-                response = {'status': 'error', 'message': 'Internal server error'}
-                self.wfile.write(json.dumps(response).encode('utf-8'))
-        else:
-            self.send_response(404)
-            self.end_headers()
-            response = {'status': 'error', 'message': 'Not Found'}
-            self.wfile.write(json.dumps(response).encode('utf-8'))
+@celery.task(name='tasks.run_dig_task')
+def run_dig_task(domain, record_type, target_server=None):
+    # This is a placeholder signature.
+    # The actual task logic will live in the agent's worker process.
+    # The coordinator only needs to know the task's name and signature to call it.
+    pass
 
-    def do_GET(self):
-        # Silence non-POST requests
-        self.send_response(405)
-        self.end_headers()
-        self.wfile.write(b'Method Not Allowed')
 
-with socketserver.TCPServer(("", PORT), SimpleHTTPRequestHandler) as httpd:
-    logging.info(f"Coordinator server starting on port {PORT}")
-    print(f"serving at port {PORT}")
-    httpd.serve_forever()
+# --- Flask Routes ---
+
+@app.route('/', methods=['GET'])
+def index():
+    """Serves the main page with the test submission form."""
+    return render_template('index.html')
+
+@app.route('/submit', methods=['POST'])
+def submit_test():
+    """
+    Handles test submission from the UI.
+    Dispatches a Celery task for the agent to execute.
+    """
+    domain = request.form.get('domain')
+    record_type = request.form.get('record_type', 'A')
+
+    if not domain:
+        return "Error: Domain is required", 400
+
+    logging.info(f"Dispatching task for domain: {domain}, type: {record_type}")
+
+    # Send the task to the Celery queue.
+    # The agent worker will pick this up.
+    run_dig_task.delay(domain, record_type)
+
+    return redirect(url_for('index'))
+
+@app.route('/api/v1/results', methods=['POST'])
+def receive_results():
+    """
+    API endpoint for agents to post back their results.
+    """
+    if not request.is_json:
+        logging.error("Request was not JSON")
+        return jsonify({"error": "Request must be JSON"}), 400
+
+    data = request.get_json()
+
+    logging.info("--- RESULT RECEIVED FROM AGENT ---")
+    logging.info(json.dumps(data, indent=2))
+
+    return jsonify({"status": "success", "message": "Data received"}), 201
+
+if __name__ == '__main__':
+    # This is for local development only.
+    # In production, use a proper WSGI server like Gunicorn.
+    app.run(host='0.0.0.0', port=5000, debug=True)

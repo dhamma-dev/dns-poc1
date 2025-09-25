@@ -2,108 +2,106 @@
 
 This project is a Proof of Concept (POC) for a DNS monitoring solution that uses the `dig` command-line utility to replicate the core functionality of a service like ThousandEyes.
 
-## Architecture
+## Architecture (Phase 2)
 
-The solution is composed of two main components for this MVP:
+The architecture has evolved to support dynamic test scheduling:
 
-*   **Agent (`agent/`)**: A containerized Python script that executes `dig` commands against a specified domain and sends the parsed results to the Coordinator.
-*   **Coordinator (`coordinator/`)**: A simple Python `http.server` that listens for incoming data from agents, logs the results to a file (`coordinator.log`), and sends a success response.
+*   **Coordinator (`coordinator/`)**: A Flask web application that serves a UI for scheduling tests. It uses Celery to dispatch test jobs to a Redis message queue.
+*   **Agent (`agent/`)**: A containerized Celery worker that listens for jobs on the Redis queue, executes `dig` commands, and posts the results back to the Coordinator's API.
+*   **Redis**: Acts as the message broker between the Coordinator and the Agent(s).
 
 ## Prerequisites
 
 *   **Docker**: Required to build and run the containerized agent.
 *   **Python 3**: Required to run the coordinator script.
+*   **Redis**: Required for the Celery message queue. You can install it via a package manager (e.g., `sudo apt-get install redis-server` or `brew install redis`).
 
-## Setup & Running the MVP
+## Setup & Running Phase 2
 
-Follow these steps to build the necessary components and run the end-to-end test.
+Follow these steps to run the complete Phase 2 stack.
 
-### 1. Build the Agent Docker Image
+### 1. Start Redis
 
-First, build the Docker image for the agent. From the root of the repository, run:
+First, ensure your Redis server is running. If you just installed it, it may have started automatically. You can check its status or start it manually.
 
 ```bash
-sudo docker build -t dig-agent agent/
+# (On most systems)
+sudo systemctl start redis-server
+
+# Or run it directly
+redis-server
 ```
 
-### 2. Start the Coordinator
+Leave this terminal running.
 
-Next, start the coordinator server. It will listen on port 5000 and log any received data to `coordinator.log` in the project root.
+### 2. Install Coordinator Dependencies
 
-Open a terminal and run the following command from the project root:
+In a **new terminal**, navigate to the project root and install the Python dependencies for the coordinator.
+
+```bash
+pip install -r coordinator/requirements.txt
+```
+
+### 3. Start the Coordinator
+
+In the same terminal, start the Flask coordinator application.
 
 ```bash
 python3 coordinator/main.py
 ```
 
-Leave this terminal running. You should see a message indicating the server has started: `serving at port 5000`.
+Leave this terminal running. It will serve the web UI and dispatch tasks.
 
-### 3. Run the Agent and Send Data
+### 4. Build and Run the Agent Worker
 
-Now, open a **second terminal**. Run the agent container, instructing it to perform a `dig` on `google.com` and send the results to the coordinator.
-
-### Connecting the Agent to the Coordinator
-
-Connecting a Docker container to a service running on the host machine (`localhost`) can be tricky. The correct method depends on your operating system.
-
-**If you are using Docker Desktop (macOS or Windows):**
-
-You must use the special DNS name `host.docker.internal` to connect from the container to your host machine. The `--network="host"` flag does not work on these systems.
-
-*Note: If you are using a custom port, replace `5000` with your port number (e.g., `8308`).*
+Open a **third terminal**. First, build the new agent Docker image.
 
 ```bash
-sudo docker run dig-agent google.com -c http://host.docker.internal:5000/api/v1/results
+sudo docker build -t dig-agent-worker agent/
 ```
 
-**If you are using Linux:**
+Next, run the agent worker container. It needs to connect to both Redis and the coordinator on your host machine.
 
-You can use the `--network="host"` flag. This makes the container share your host's network, and `127.0.0.1` will correctly point to your host machine.
+**Important:** The command to run the agent depends on your operating system.
 
-*Note: If you are using a custom port, replace `5000` with your port number (e.g., `8308`).*
+**On Docker Desktop (macOS or Windows):**
+
+Use `host.docker.internal` to connect to services on your host.
 
 ```bash
-sudo docker run --network="host" dig-agent google.com -c http://127.0.0.1:5000/api/v1/results
+sudo docker run \
+  -e REDIS_URL=redis://host.docker.internal:6379/0 \
+  -e COORDINATOR_URL=http://host.docker.internal:5000/api/v1/results \
+  dig-agent-worker
 ```
 
-If you see a "Connection refused" error, it almost certainly means you are using the wrong command for your operating system. Please try the `host.docker.internal` command.
+**On Linux:**
 
-You should see a success message from the agent in your terminal:
-
-```
-Successfully sent results to http://127.0.0.1:5000/api/v1/results
-{'message': 'Data received', 'status': 'success'}
-```
-
-### 4. Verify the Results
-
-Finally, check the contents of the `coordinator.log` file in the project root. This file contains the data received and logged by the coordinator.
+Use `--network="host"` to share the host's network.
 
 ```bash
-cat coordinator.log
+sudo docker run --network="host" \
+  -e REDIS_URL=redis://localhost:6379/0 \
+  -e COORDINATOR_URL=http://localhost:5000/api/v1/results \
+  dig-agent-worker
 ```
 
-You should see log entries detailing the data received from the agent, similar to this:
+Leave this terminal running. You should see Celery startup logs, and it will end with "celery@<hostname>: Ready".
 
-```
-2025-09-25 11:15:00,123 - INFO - --- REQUEST RECEIVED ---
-2025-09-25 11:15:00,123 - INFO - Received data from agent:
-2025-09-25 11:15:00,123 - INFO - {
-  "domain": "google.com",
-  "record_type": "A",
-  "query_time_ms": 10,
-  "status": "NOERROR",
-  "records": [
-    {
-      "name": "google.com.",
-      "ttl": 250,
-      "class": "IN",
-      "type": "A",
-      "data": "142.250.191.113"
-    }
-  ]
-}
-2025-09-25 11:15:00,123 - INFO - --- RESPONSE SENT ---
-```
+### 5. Schedule a Test via the UI
 
-This confirms that the agent successfully performed the `dig` command and transmitted the results to the coordinator, completing the MVP test.
+Open your web browser and navigate to:
+
+[http://127.0.0.1:5000/](http://127.0.0.1:5000/)
+
+You should see a simple form.
+1.  Enter a domain (e.g., `github.com`).
+2.  Select a record type.
+3.  Click "Run Test".
+
+### 6. Verify the Results
+
+1.  **Agent Terminal**: You should see a log message indicating the agent received and executed the task (e.g., `Received task: dig github.com A`).
+2.  **Coordinator Terminal**: You should see a log message showing the results posted back from the agent (e.g., `--- RESULT RECEIVED FROM AGENT ---`).
+
+This confirms the full workflow: the UI dispatches a task via Celery, the agent receives and executes it, and the results are sent back to the coordinator.

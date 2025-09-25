@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DNS Monitoring POC</title>
+    <style>
+        body { font-family: sans-serif; margin: 2em; }
+        .container { max-width: 600px; margin: auto; padding: 1em; border: 1px solid #ccc; border-radius: 5px; }
+        label { display: block; margin-bottom: 0.5em; }
+        input, select { width: 100%; padding: 0.5em; margin-bottom: 1em; box-sizing: border-box; }
+        button { padding: 0.7em 1.5em; background-color: #007bff; color: white; border: none; border-radius: 3px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Schedule a New DNS Test</h1>
+        <form action="/submit" method="post">
+            <label for="domain">Domain:</label>
+            <input type="text" id="domain" name="domain" required>
+
+            <label for="record_type">Record Type:</label>
+            <select id="record_type" name="record_type">
+                <option value="A">A</option>
+                <option value="AAAA">AAAA</option>
+                <option value="CNAME">CNAME</option>
+                <option value="MX">MX</option>
+                <option value="NS">NS</option>
+                <option value="TXT">TXT</option>
+            </select>
+
+            <button type="submit">Run Test</button>
+        </form>
+    </div>
+</body>
+</html>
