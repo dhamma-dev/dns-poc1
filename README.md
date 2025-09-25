@@ -42,11 +42,31 @@ Leave this terminal running. You should see a message indicating the server has 
 
 Now, open a **second terminal**. Run the agent container, instructing it to perform a `dig` on `google.com` and send the results to the coordinator.
 
-The `--network="host"` flag is used to allow the Docker container to connect to the coordinator server running on `localhost:5000`.
+### Connecting the Agent to the Coordinator
+
+Connecting a Docker container to a service running on the host machine (`localhost`) can be tricky. The correct method depends on your operating system.
+
+**If you are using Docker Desktop (macOS or Windows):**
+
+You must use the special DNS name `host.docker.internal` to connect from the container to your host machine. The `--network="host"` flag does not work on these systems.
+
+*Note: If you are using a custom port, replace `5000` with your port number (e.g., `8308`).*
+
+```bash
+sudo docker run dig-agent google.com -c http://host.docker.internal:5000/api/v1/results
+```
+
+**If you are using Linux:**
+
+You can use the `--network="host"` flag. This makes the container share your host's network, and `127.0.0.1` will correctly point to your host machine.
+
+*Note: If you are using a custom port, replace `5000` with your port number (e.g., `8308`).*
 
 ```bash
 sudo docker run --network="host" dig-agent google.com -c http://127.0.0.1:5000/api/v1/results
 ```
+
+If you see a "Connection refused" error, it almost certainly means you are using the wrong command for your operating system. Please try the `host.docker.internal` command.
 
 You should see a success message from the agent in your terminal:
 
