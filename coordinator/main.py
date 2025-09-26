@@ -11,7 +11,7 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 
-from .models import db, TestResult, DNSRecord
+from models import db, TestResult, DNSRecord
 
 # Initialize Flask App
 app = Flask(__name__)
@@ -135,4 +135,4 @@ def list_results():
 if __name__ == '__main__':
     # This is for local development only.
     # In production, use a proper WSGI server like Gunicorn.
-    app.run(host='0.0.0.0', port=8308, debug=True)
+    app.run(host='0.0.0.0', port=5000, debug=True)

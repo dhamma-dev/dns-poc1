@@ -11,7 +11,7 @@ from celery import Celery
 # and where to post results back to (the coordinator's API).
 # We use environment variables for this.
 REDIS_URL = os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
-COORDINATOR_URL = os.environ.get('COORDINATOR_URL', 'http://localhost:8308/api/v1/results')
+COORDINATOR_URL = os.environ.get('COORDINATOR_URL', 'http://localhost:5000/api/v1/results')
 
 # --- Celery App Initialization ---
 

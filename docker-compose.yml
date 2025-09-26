@@ -20,7 +20,7 @@ services:
   coordinator:
     build: ./coordinator
     ports:
-      - "8308:8308"
+      - "5000:5000"
     volumes:
       - ./coordinator:/app
     environment:
