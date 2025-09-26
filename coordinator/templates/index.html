@@ -15,11 +15,18 @@
 <body>
     <div class="container">
         <h1>Schedule a New DNS Test</h1>
+        <p><a href="/results">View All Test Results &rarr;</a></p>
         <form action="/submit" method="post">
             <label for="domain">Domain:</label>
             <input type="text" id="domain" name="domain" required>
 
-            <label for="record_type">Record Type:</label>
+            <label for="test_type">Test Type:</label>
+            <select id="test_type" name="test_type">
+                <option value="server">DNS Server</option>
+                <option value="trace">DNS Trace</option>
+            </select>
+
+            <label for="record_type">Record Type (for DNS Server test):</label>
             <select id="record_type" name="record_type">
                 <option value="A">A</option>
                 <option value="AAAA">AAAA</option>

@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Results</title>
+    <style>
+        body { font-family: sans-serif; margin: 2em; }
+        .container { max-width: 1000px; margin: auto; }
+        table { width: 100%; border-collapse: collapse; margin-top: 1em; }
+        th, td { border: 1px solid #ccc; padding: 0.8em; text-align: left; }
+        th { background-color: #f4f4f4; }
+        .trace-data { white-space: pre-wrap; font-family: monospace; background-color: #efefef; padding: 1em; }
+        a { color: #007bff; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Test Results</h1>
+        <p><a href="/">&larr; Back to Scheduler</a></p>
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Timestamp</th>
+                    <th>Domain</th>
+                    <th>Test/Record Type</th>
+                    <th>Query Time (ms)</th>
+                    <th>Status</th>
+                    <th>Records</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for result in results %}
+                <tr>
+                    <td>{{ result.id }}</td>
+                    <td>{{ result.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                    <td>{{ result.domain }}</td>
+                    <td>{{ result.record_type }}</td>
+                    <td>{{ result.query_time_ms }}</td>
+                    <td>{{ result.status }}</td>
+                    <td>
+                        {% if result.record_type == 'TRACE' %}
+                            <details>
+                                <summary>View Trace</summary>
+                                <div class="trace-data">{{ result.records[0].data }}</div>
+                            </details>
+                        {% else %}
+                            <ul>
+                            {% for record in result.records %}
+                                <li>{{ record.data }} (TTL: {{ record.ttl }})</li>
+                            {% endfor %}
+                            </ul>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</body>
+</html>

@@ -6,6 +6,17 @@ services:
     ports:
       - "6379:6379"
 
+  db:
+    image: postgres:13
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+    environment:
+      - POSTGRES_USER=user
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=digdug_db
+    ports:
+      - "5432:5432"
+
   coordinator:
     build: ./coordinator
     ports:
@@ -15,8 +26,10 @@ services:
     environment:
       - CELERY_BROKER_URL=redis://redis:6379/0
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - DATABASE_URL=postgresql://user:password@db:5432/digdug_db
     depends_on:
       - redis
+      - db
 
   agent:
     build: ./agent
@@ -28,3 +41,6 @@ services:
     depends_on:
       - coordinator
       - redis
+
+volumes:
+  postgres_data:

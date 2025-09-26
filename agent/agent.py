@@ -68,20 +68,37 @@ def parse_dig_output(output, domain, record_type):
 # --- Celery Task Definition ---
 
 @celery.task(name='tasks.run_dig_task')
-def run_dig_task(domain, record_type='A', target_server=None):
+def run_dig_task(domain, record_type, test_type):
     """
     This is the core Celery task the agent worker will execute.
     It runs `dig`, parses the output, and sends it back to the coordinator.
     """
-    print(f"Received task: dig {domain} {record_type}")
+    print(f"Received task: dig {domain} {record_type} (Test Type: {test_type})")
+
     command = ['dig']
-    if target_server:
-        command.append(f'@{target_server}')
-    command.extend([domain, record_type])
+
+    if test_type == 'trace':
+        command.append('+trace')
+        command.append(domain)
+        # The specific record_type is not used in a trace command
+    else: # Default to 'server' test
+        command.extend([domain, record_type])
 
     try:
         result = subprocess.run(command, capture_output=True, text=True, check=True)
-        parsed_results = parse_dig_output(result.stdout, domain, record_type)
+
+        if test_type == 'trace':
+            # For a trace, we will just store the raw output in a single record for now.
+            # A more detailed parser could be a future enhancement.
+            parsed_results = {
+                'domain': domain,
+                'record_type': 'TRACE',
+                'status': 'COMPLETE',
+                'records': [{'data': result.stdout, 'name': domain, 'ttl': 0, 'class': 'IN', 'type': 'TRACE'}]
+            }
+        else:
+            parsed_results = parse_dig_output(result.stdout, domain, record_type)
+
         send_results(parsed_results)
         return parsed_results
 
